@@ -44,7 +44,6 @@ jobs:
           export PATH=`pwd`/depot_tools:$PATH
           echo $PATH
           cd angle
-          python third_party/depot_tools/update_depot_tools_toggle.py --enable
           python scripts/bootstrap.py
           gclient sync
           gn gen out/Android-${{matrix.arch}}
