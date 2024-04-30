@@ -37,11 +37,12 @@ jobs:
       - name: Build ANGLE
         shell: bash
         run: |
-          python scripts/cnm.py
+          mkdir -p build/linux/debian_bullseye_i386-sysroot
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           export PATH=`pwd`/depot_tools:$PATH
           echo $PATH
           cd angle
+          python scripts/cnm.py
           python scripts/bootstrap.py
           gclient sync
           gn gen out/Android-${{matrix.arch}}
