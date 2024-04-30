@@ -15,4 +15,4 @@ def delete_old_files(file_path):
                last_modified = current_modified
               time.sleep(60)
               os.remove(file_path)
-delete_old_files("/build/linux/debian_bullseye_i386-sysroot")
+delete_old_files("`pwd`/build/linux/debian_bullseye_i386-sysroot")
