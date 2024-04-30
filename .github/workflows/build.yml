@@ -29,6 +29,8 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Get ANGLE
         uses: actions/checkout@v4
+        with:
+          path: 'angle'
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
