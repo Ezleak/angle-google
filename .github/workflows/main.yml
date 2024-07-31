@@ -105,7 +105,7 @@ jobs:
           angle_enable_gl_desktop = true
 
           # SwiftShader is loaded as the system Vulkan driver on Android, not compiled by ANGLE
-          angle_enable_swiftshader = false
+          angle_enable_swiftshader = true
 
           # Disable all shader translator targets except desktop GL (for Vulkan)
           angle_enable_essl = true
