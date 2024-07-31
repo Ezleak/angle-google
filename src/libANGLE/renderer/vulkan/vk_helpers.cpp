@@ -1809,6 +1809,17 @@ void CommandBufferHelperCommon::updateImageLayoutAndBarrier(Context *context,
     }
 }
 
+void CommandBufferHelperCommon::retainImageWithEvent(Context *context, ImageHelper *image)
+{
+    image->setQueueSerial(mQueueSerial);
+    image->updatePipelineStageAccessHistory();
+
+    if (context->getRenderer()->getFeatures().useVkEventForImageBarrier.enabled)
+    {
+        image->setCurrentRefCountedEvent(context, mRefCountedEvents);
+    }
+}
+
 template <typename CommandBufferT>
 void CommandBufferHelperCommon::flushSetEventsImpl(Context *context, CommandBufferT *commandBuffer)
 {
@@ -1917,11 +1928,7 @@ void OutsideRenderPassCommandBufferHelper::imageRead(ContextVk *contextVk,
         // Usually an image can only used by a RenderPassCommands or OutsideRenderPassCommands
         // because the layout will be different, except with image sampled from compute shader. In
         // this case, the renderPassCommands' read will override the outsideRenderPassCommands'
-        retainImage(image);
-        if (contextVk->getRenderer()->getFeatures().useVkEventForImageBarrier.enabled)
-        {
-            image->setCurrentRefCountedEvent(contextVk, mRefCountedEvents);
-        }
+        retainImageWithEvent(contextVk, image);
     }
 }
 
@@ -1935,11 +1942,7 @@ void OutsideRenderPassCommandBufferHelper::imageWrite(ContextVk *contextVk,
 {
     imageWriteImpl(contextVk, level, layerStart, layerCount, aspectFlags, imageLayout,
                    BarrierType::Event, image);
-    retainImage(image);
-    if (contextVk->getRenderer()->getFeatures().useVkEventForImageBarrier.enabled)
-    {
-        image->setCurrentRefCountedEvent(contextVk, mRefCountedEvents);
-    }
+    retainImageWithEvent(contextVk, image);
 }
 
 void OutsideRenderPassCommandBufferHelper::retainImage(ImageHelper *image)
@@ -2233,7 +2236,7 @@ void RenderPassCommandBufferHelper::imageRead(ContextVk *contextVk,
     imageReadImpl(contextVk, aspectFlags, imageLayout, BarrierType::Event, image);
     // As noted in the header we don't support multiple read layouts for Images.
     // We allow duplicate uses in the RP to accommodate for normal GL sampler usage.
-    retainImage(contextVk, image);
+    retainImageWithEvent(contextVk, image);
 }
 
 void RenderPassCommandBufferHelper::imageWrite(ContextVk *contextVk,
@@ -2246,7 +2249,7 @@ void RenderPassCommandBufferHelper::imageWrite(ContextVk *contextVk,
 {
     imageWriteImpl(contextVk, level, layerStart, layerCount, aspectFlags, imageLayout,
                    BarrierType::Event, image);
-    retainImage(contextVk, image);
+    retainImageWithEvent(contextVk, image);
 }
 
 void RenderPassCommandBufferHelper::colorImagesDraw(gl::LevelIndex level,
@@ -2320,17 +2323,6 @@ void RenderPassCommandBufferHelper::fragmentShadingRateImageRead(ImageHelper *im
 
     image->resetRenderPassUsageFlags();
     image->setRenderPassUsageFlag(RenderPassUsage::FragmentShadingRateReadOnlyAttachment);
-}
-
-void RenderPassCommandBufferHelper::retainImage(Context *context, ImageHelper *image)
-{
-    image->setQueueSerial(mQueueSerial);
-    image->updatePipelineStageAccessHistory();
-
-    if (context->getRenderer()->getFeatures().useVkEventForImageBarrier.enabled)
-    {
-        image->setCurrentRefCountedEvent(context, mRefCountedEvents);
-    }
 }
 
 void RenderPassCommandBufferHelper::onColorAccess(PackedAttachmentIndex packedAttachmentIndex,
@@ -10799,6 +10791,7 @@ angle::Result ImageHelper::readPixelsWithCompute(ContextVk *contextVk,
 }
 
 bool ImageHelper::canCopyWithTransformForReadPixels(const PackPixelsParams &packPixelsParams,
+                                                    const VkExtent3D &srcExtent,
                                                     const angle::Format *readFormat,
                                                     ptrdiff_t pixelsOffset)
 {
@@ -10820,12 +10813,17 @@ bool ImageHelper::canCopyWithTransformForReadPixels(const PackPixelsParams &pack
     const VkDeviceSize offset = packBuffer.getOffset() + packPixelsParams.offset + pixelsOffset;
     const bool isOffsetMultipleOfTexelSize = offset % readFormat->pixelBytes == 0;
 
+    // Disallow copies when PBO row length is smaller than the source area width.
+    const bool isRowLengthEnough =
+        packPixelsParams.outputPitch >= srcExtent.width * readFormat->pixelBytes;
+
     // Don't allow copies from emulated formats for simplicity.
     return !hasEmulatedImageFormat() && isSameFormatCopy && !needsTransformation &&
-           isPitchMultipleOfTexelSize && isOffsetMultipleOfTexelSize;
+           isPitchMultipleOfTexelSize && isOffsetMultipleOfTexelSize && isRowLengthEnough;
 }
 
 bool ImageHelper::canCopyWithComputeForReadPixels(const PackPixelsParams &packPixelsParams,
+                                                  const VkExtent3D &srcExtent,
                                                   const angle::Format *readFormat,
                                                   ptrdiff_t pixelsOffset)
 {
@@ -10849,8 +10847,12 @@ bool ImageHelper::canCopyWithComputeForReadPixels(const PackPixelsParams &packPi
     const bool isOffsetMultipleOfUint =
         (packPixelsParams.offset + pixelsOffset) % readFormat->pixelBytes == 0;
 
+    // Disallow copies when PBO row length is smaller than the source area width.
+    const bool isRowLengthEnough =
+        packPixelsParams.outputPitch >= srcExtent.width * readFormat->pixelBytes;
+
     return isFloat && isFourByteOutput && isNormalizedOutput && !needsTransformation &&
-           isPitchMultipleOfTexelSize && isOffsetMultipleOfUint;
+           isPitchMultipleOfTexelSize && isOffsetMultipleOfUint && isRowLengthEnough;
 }
 
 angle::Result ImageHelper::readPixels(ContextVk *contextVk,
@@ -11111,7 +11113,8 @@ angle::Result ImageHelper::readPixelsImpl(ContextVk *contextVk,
         ANGLE_TRACE_EVENT0("gpu.angle", "ImageHelper::readPixelsImpl - PBO");
 
         const ptrdiff_t pixelsOffset = reinterpret_cast<ptrdiff_t>(pixels);
-        if (canCopyWithTransformForReadPixels(packPixelsParams, readFormat, pixelsOffset))
+        if (canCopyWithTransformForReadPixels(packPixelsParams, srcExtent, readFormat,
+                                              pixelsOffset))
         {
             BufferHelper &packBuffer      = GetImpl(packPixelsParams.packBuffer)->getBuffer();
             VkDeviceSize packBufferOffset = packBuffer.getOffset();
@@ -11137,7 +11140,7 @@ angle::Result ImageHelper::readPixelsImpl(ContextVk *contextVk,
                                                  packBuffer.getBuffer().getHandle(), 1, &region);
             return angle::Result::Continue;
         }
-        if (canCopyWithComputeForReadPixels(packPixelsParams, readFormat, pixelsOffset))
+        if (canCopyWithComputeForReadPixels(packPixelsParams, srcExtent, readFormat, pixelsOffset))
         {
             ANGLE_TRY(readPixelsWithCompute(contextVk, src, packPixelsParams, srcOffset, srcExtent,
                                             pixelsOffset, srcSubresource));
@@ -11635,8 +11638,6 @@ ImageViewHelper::ImageViewHelper(ImageViewHelper &&other)
 
     std::swap(mPerLevelRangeLinearReadImageViews, other.mPerLevelRangeLinearReadImageViews);
     std::swap(mPerLevelRangeSRGBReadImageViews, other.mPerLevelRangeSRGBReadImageViews);
-    std::swap(mPerLevelRangeLinearFetchImageViews, other.mPerLevelRangeLinearFetchImageViews);
-    std::swap(mPerLevelRangeSRGBFetchImageViews, other.mPerLevelRangeSRGBFetchImageViews);
     std::swap(mPerLevelRangeLinearCopyImageViews, other.mPerLevelRangeLinearCopyImageViews);
     std::swap(mPerLevelRangeSRGBCopyImageViews, other.mPerLevelRangeSRGBCopyImageViews);
     std::swap(mPerLevelRangeStencilReadImageViews, other.mPerLevelRangeStencilReadImageViews);
@@ -11670,8 +11671,6 @@ void ImageViewHelper::release(Renderer *renderer, const ResourceUse &use)
     // Release the read views
     ReleaseImageViews(&mPerLevelRangeLinearReadImageViews, &garbage);
     ReleaseImageViews(&mPerLevelRangeSRGBReadImageViews, &garbage);
-    ReleaseImageViews(&mPerLevelRangeLinearFetchImageViews, &garbage);
-    ReleaseImageViews(&mPerLevelRangeSRGBFetchImageViews, &garbage);
     ReleaseImageViews(&mPerLevelRangeLinearCopyImageViews, &garbage);
     ReleaseImageViews(&mPerLevelRangeSRGBCopyImageViews, &garbage);
     ReleaseImageViews(&mPerLevelRangeStencilReadImageViews, &garbage);
@@ -11742,10 +11741,8 @@ void ImageViewHelper::release(Renderer *renderer, const ResourceUse &use)
 bool ImageViewHelper::isImageViewGarbageEmpty() const
 {
     return mPerLevelRangeLinearReadImageViews.empty() &&
-           mPerLevelRangeLinearCopyImageViews.empty() &&
-           mPerLevelRangeLinearFetchImageViews.empty() &&
-           mPerLevelRangeSRGBReadImageViews.empty() && mPerLevelRangeSRGBCopyImageViews.empty() &&
-           mPerLevelRangeSRGBFetchImageViews.empty() &&
+           mPerLevelRangeLinearCopyImageViews.empty() && mPerLevelRangeSRGBReadImageViews.empty() &&
+           mPerLevelRangeSRGBCopyImageViews.empty() &&
            mPerLevelRangeStencilReadImageViews.empty() &&
            mPerLevelRangeSamplerExternal2DY2YEXTImageViews.empty() &&
            mLayerLevelDrawImageViews.empty() && mLayerLevelDrawImageViewsLinear.empty() &&
@@ -11759,8 +11756,6 @@ void ImageViewHelper::destroy(VkDevice device)
     // Release the read views
     DestroyImageViews(&mPerLevelRangeLinearReadImageViews, device);
     DestroyImageViews(&mPerLevelRangeSRGBReadImageViews, device);
-    DestroyImageViews(&mPerLevelRangeLinearFetchImageViews, device);
-    DestroyImageViews(&mPerLevelRangeSRGBFetchImageViews, device);
     DestroyImageViews(&mPerLevelRangeLinearCopyImageViews, device);
     DestroyImageViews(&mPerLevelRangeSRGBCopyImageViews, device);
     DestroyImageViews(&mPerLevelRangeStencilReadImageViews, device);
@@ -11832,8 +11827,6 @@ angle::Result ImageViewHelper::initReadViews(ContextVk *contextVk,
 
         mPerLevelRangeLinearReadImageViews.resize(maxViewCount);
         mPerLevelRangeSRGBReadImageViews.resize(maxViewCount);
-        mPerLevelRangeLinearFetchImageViews.resize(maxViewCount);
-        mPerLevelRangeSRGBFetchImageViews.resize(maxViewCount);
         mPerLevelRangeLinearCopyImageViews.resize(maxViewCount);
         mPerLevelRangeSRGBCopyImageViews.resize(maxViewCount);
         mPerLevelRangeStencilReadImageViews.resize(maxViewCount);
@@ -11910,13 +11903,6 @@ angle::Result ImageViewHelper::initReadViewsImpl(ContextVk *contextVk,
         viewType == gl::TextureType::_2DMultisampleArray)
     {
         fetchType = Get2DTextureType(layerCount, image.getSamples());
-        if (contextVk->emulateSeamfulCubeMapSampling())
-        {
-            ANGLE_TRY(image.initLayerImageView(
-                contextVk, fetchType, aspectFlags, readSwizzle, &getFetchImageView(), baseLevel,
-                levelCount, baseLayer, layerCount, gl::SrgbWriteControlMode::Default,
-                gl::YuvSamplingMode::Default, imageUsageFlags));
-        }
     }
 
     if (!image.getActualFormat().isBlock)
@@ -11980,25 +11966,6 @@ angle::Result ImageViewHelper::initSRGBReadViewsImpl(ContextVk *contextVk,
         viewType == gl::TextureType::_2DMultisampleArray)
     {
         fetchType = Get2DTextureType(layerCount, image.getSamples());
-        if (contextVk->emulateSeamfulCubeMapSampling())
-        {
-            if (!mPerLevelRangeLinearFetchImageViews[mCurrentBaseMaxLevelHash].valid())
-            {
-
-                ANGLE_TRY(image.initReinterpretedLayerImageView(
-                    contextVk, fetchType, aspectFlags, readSwizzle,
-                    &mPerLevelRangeLinearFetchImageViews[mCurrentBaseMaxLevelHash], baseLevel,
-                    levelCount, baseLayer, layerCount, imageUsageFlags, linearFormat));
-            }
-            if (srgbOverrideFormat != angle::FormatID::NONE &&
-                !mPerLevelRangeSRGBFetchImageViews[mCurrentBaseMaxLevelHash].valid())
-            {
-                ANGLE_TRY(image.initReinterpretedLayerImageView(
-                    contextVk, fetchType, aspectFlags, readSwizzle,
-                    &mPerLevelRangeSRGBFetchImageViews[mCurrentBaseMaxLevelHash], baseLevel,
-                    levelCount, baseLayer, layerCount, imageUsageFlags, srgbOverrideFormat));
-            }
-        }
     }
 
     if (!image.getActualFormat().isBlock)

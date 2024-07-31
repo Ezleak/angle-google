@@ -1366,6 +1366,10 @@ class CommandBufferHelperCommon : angle::NonCopyable
         writeResource->setWriteQueueSerial(mQueueSerial);
     }
 
+    // Update image with this command buffer's queueSerial. If VkEvent is enabled, image's current
+    // event is also updated with this command's event.
+    void retainImageWithEvent(Context *context, ImageHelper *image);
+
     // Returns true if event already existed in this command buffer.
     bool hasSetEventPendingFlush(const RefCountedEvent &event) const
     {
@@ -1801,10 +1805,6 @@ class RenderPassCommandBufferHelper final : public CommandBufferHelperCommon
                                 ImageHelper *resolveImage,
                                 UniqueSerial imageSiblingSerial);
     void fragmentShadingRateImageRead(ImageHelper *image);
-
-    // Update image with this command buffer's queueSerial. If VkEvent is enabled, image's current
-    // event is also updated with this command's event.
-    void retainImage(Context *context, ImageHelper *image);
 
     bool usesImage(const ImageHelper &image) const;
     bool startedAndUsesImageWithBarrier(const ImageHelper &image) const;
@@ -3113,9 +3113,11 @@ class ImageHelper final : public Resource, public angle::Subject
                                       void *pixels);
 
     bool canCopyWithTransformForReadPixels(const PackPixelsParams &packPixelsParams,
+                                           const VkExtent3D &srcExtent,
                                            const angle::Format *readFormat,
                                            ptrdiff_t pixelsOffset);
     bool canCopyWithComputeForReadPixels(const PackPixelsParams &packPixelsParams,
+                                         const VkExtent3D &srcExtent,
                                          const angle::Format *readFormat,
                                          ptrdiff_t pixelsOffset);
 
@@ -3300,14 +3302,6 @@ class ImageViewHelper final : angle::NonCopyable
     {
         return getValidReadViewImpl(mPerLevelRangeSRGBReadImageViews);
     }
-    const ImageView &getLinearFetchImageView() const
-    {
-        return getValidReadViewImpl(mPerLevelRangeLinearFetchImageViews);
-    }
-    const ImageView &getSRGBFetchImageView() const
-    {
-        return getValidReadViewImpl(mPerLevelRangeSRGBFetchImageViews);
-    }
     const ImageView &getLinearCopyImageView() const
     {
         return getValidReadViewImpl(mPerLevelRangeLinearCopyImageViews);
@@ -3325,12 +3319,6 @@ class ImageViewHelper final : angle::NonCopyable
     {
         return mLinearColorspace ? getReadViewImpl(mPerLevelRangeLinearReadImageViews)
                                  : getReadViewImpl(mPerLevelRangeSRGBReadImageViews);
-    }
-
-    const ImageView &getFetchImageView() const
-    {
-        return mLinearColorspace ? getReadViewImpl(mPerLevelRangeLinearFetchImageViews)
-                                 : getReadViewImpl(mPerLevelRangeSRGBFetchImageViews);
     }
 
     const ImageView &getCopyImageView() const
@@ -3360,21 +3348,6 @@ class ImageViewHelper final : angle::NonCopyable
         return mCurrentBaseMaxLevelHash < mPerLevelRangeStencilReadImageViews.size()
                    ? mPerLevelRangeStencilReadImageViews[mCurrentBaseMaxLevelHash].valid()
                    : false;
-    }
-
-    bool hasFetchImageView() const
-    {
-        if ((mLinearColorspace &&
-             mCurrentBaseMaxLevelHash < mPerLevelRangeLinearFetchImageViews.size()) ||
-            (!mLinearColorspace &&
-             mCurrentBaseMaxLevelHash < mPerLevelRangeSRGBFetchImageViews.size()))
-        {
-            return getFetchImageView().valid();
-        }
-        else
-        {
-            return false;
-        }
     }
 
     bool hasCopyImageView() const
@@ -3465,11 +3438,6 @@ class ImageViewHelper final : angle::NonCopyable
         return mLinearColorspace ? getReadViewImpl(mPerLevelRangeLinearReadImageViews)
                                  : getReadViewImpl(mPerLevelRangeSRGBReadImageViews);
     }
-    ImageView &getFetchImageView()
-    {
-        return mLinearColorspace ? getReadViewImpl(mPerLevelRangeLinearFetchImageViews)
-                                 : getReadViewImpl(mPerLevelRangeSRGBFetchImageViews);
-    }
     ImageView &getCopyImageView()
     {
         return mLinearColorspace ? getReadViewImpl(mPerLevelRangeLinearCopyImageViews)
@@ -3535,8 +3503,6 @@ class ImageViewHelper final : angle::NonCopyable
     // Read views (one per [base, max] level range)
     ImageViewVector mPerLevelRangeLinearReadImageViews;
     ImageViewVector mPerLevelRangeSRGBReadImageViews;
-    ImageViewVector mPerLevelRangeLinearFetchImageViews;
-    ImageViewVector mPerLevelRangeSRGBFetchImageViews;
     ImageViewVector mPerLevelRangeLinearCopyImageViews;
     ImageViewVector mPerLevelRangeSRGBCopyImageViews;
     ImageViewVector mPerLevelRangeStencilReadImageViews;
