@@ -78,7 +78,7 @@ jobs:
           mkdir -p out/Android-${{matrix.arch}}
           touch out/Android-${{matrix.arch}}/args.gn
 
-          echo "target_os = /"android/"
+          echo "target_os = \"android\"
           is_component_build = false
           is_debug = false
           dcheck_always_on = false
@@ -87,7 +87,7 @@ jobs:
           angle_build_all = false
 
           # Build for 64-bit CPUs
-          target_cpu = "arm64"
+          target_cpu = \"${{matrix.arch}}\"
 
           # Target ndk API 26 to make sure ANGLE can use the Vulkan backend on Android
           android32_ndk_api_level = 26
