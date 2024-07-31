@@ -78,7 +78,7 @@ jobs:
           mkdir -p out/Android-${{matrix.arch}}
           touch out/Android-${{matrix.arch}}/args.gn
 
-          echo "target_os = "android"
+          echo "target_os = /"android/"
           is_component_build = false
           is_debug = false
           dcheck_always_on = false
@@ -101,8 +101,6 @@ jobs:
           angle_enable_null = false
           angle_enable_metal = false
           angle_enable_gl_desktop_frontend = true
-          angle_enable_gl_desktop_backend = true
-          angle_enable_gl_desktop = true
 
           # SwiftShader is loaded as the system Vulkan driver on Android, not compiled by ANGLE
           angle_enable_swiftshader = true
