@@ -97,7 +97,8 @@ jobs:
           angle_enable_essl = true
           angle_enable_glsl = true
           angle_enable_hlsl = true 
-          angle_enable_gl_desktop_frontend = true
+          #angle_enable_gl_desktop_frontend = true
+          angle_enable_desktop_glsl = true
           angle_use_spirv_gen_through_glslang = true
           angle_expose_non_conformant_extensions_and_versions = true
           angle_has_histograms = false
