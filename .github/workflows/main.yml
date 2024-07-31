@@ -86,7 +86,7 @@ jobs:
           angle_assert_always_on = false
           symbol_level = 0
           angle_build_all = false
-          android32_ndk_api_level = 26
+          android64_ndk_api_level = 26
           angle_enable_vulkan = true
           angle_enable_gl = true
           angle_enable_d3d9 = false
@@ -94,10 +94,11 @@ jobs:
           angle_enable_null = false
           angle_enable_metal = false
           angle_enable_swiftshader = false
-          angle_enable_essl = true
           angle_enable_glsl = true
           angle_enable_hlsl = true
           angle_enable_desktop_gl_frontend = true
+          angle_enable_desktop_gl_backend = true
+          angle_enable_desktop_gl = true
           angle_expose_non_conformant_extensions_and_versions = true
           angle_has_histograms = false
           angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
