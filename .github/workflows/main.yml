@@ -11,7 +11,7 @@ jobs:
         arch: [ "arm64" ]
 
     name: Build For Android (libraries and apks)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Free up disk space
@@ -83,10 +83,9 @@ jobs:
           is_component_build = false
           is_debug = false
           dcheck_always_on = false
+          angle_assert_always_on = false
           symbol_level = 0
-          angle_standalone = false
           angle_build_all = false
-          android32_ndk_api_level = 26
           android64_ndk_api_level = 26
           angle_enable_vulkan = true
           angle_enable_gl = true
@@ -94,33 +93,14 @@ jobs:
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
-          angle_enable_gl_desktop_frontend = true
           angle_enable_swiftshader = false
           angle_enable_essl = true
           angle_enable_glsl = true
           angle_enable_hlsl = true
-          angle_enable_vksl = true
-
-          #angle_enable_commit_id = false
-
-          #angle_test_enable_system_egl = true
-
-          # Shader fix
+          angle_enable_gl_desktop_frontend = true
           angle_use_spirv_gen_through_glslang = true
-
-          # Enable using Vulkan to collect system info as a fallback.
-          #angle_enable_vulkan_system_info = true
-
-          # Link in system libGL, to work with apitrace.  See doc/DebuggingTips.md.
-          #angle_link_glx = true
-
-          # Disable histogram/protobuf support
+          angle_expose_non_conformant_extensions_and_versions = true
           angle_has_histograms = false
-
-          # Disable _LIBCPP_ABI_UNSTABLE, since it breaks std::string
-          libcxx_abi_unstable = false
-
-          # rapidJSON is used for ANGLE's frame capture (among other things), which is unnecessary for AOSP builds.
           angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
 
           gn gen out/Android-${{matrix.arch}}
