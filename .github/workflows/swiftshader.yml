@@ -1,0 +1,155 @@
+name: Build-SwiftShader
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: [ "arm64" ]
+
+    name: Build For Android (libraries and apks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free up disk space
+        uses: easimon/maximize-build-space@v10
+        with:
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Free up disk space P2
+        run: |
+          rm -rf *
+
+          sudo rm -rf \
+            /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup \
+            /usr/lib/jvm || true
+
+          sudo apt install aptitude -y >/dev/null 2>&1
+          sudo aptitude purge aria2 ansible azure-cli shellcheck rpm xorriso zsync \
+            esl-erlang firefox gfortran-8 gfortran-9 google-chrome-stable \
+            google-cloud-sdk imagemagick \
+            libmagickcore-dev libmagickwand-dev libmagic-dev ant ant-optional kubectl \
+            mercurial apt-transport-https mono-complete libmysqlclient \
+            unixodbc-dev yarn chrpath libssl-dev libxft-dev \
+            libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev \
+            snmp pollinate libpq-dev postgresql-client powershell ruby-full \
+            sphinxsearch subversion mongodb-org azure-cli microsoft-edge-stable \
+            -y -f >/dev/null 2>&1
+          sudo aptitude purge google-cloud-sdk -f -y >/dev/null 2>&1
+          sudo aptitude purge microsoft-edge-stable -f -y >/dev/null 2>&1 || true
+          sudo apt purge microsoft-edge-stable -f -y >/dev/null 2>&1 || true
+          sudo aptitude purge '~n ^mysql' -f -y >/dev/null 2>&1
+          sudo aptitude purge '~n ^php' -f -y >/dev/null 2>&1
+          sudo aptitude purge '~n ^dotnet' -f -y >/dev/null 2>&1
+          sudo apt-get autoremove -y >/dev/null 2>&1
+          sudo apt-get autoclean -y >/dev/null 2>&1
+    
+      - name: Get Angle
+        uses: actions/checkout@v4
+        with:
+          path: 'angle'
+          fetch-depth: 1
+
+      - name: Get & Install depot_tools
+        run: |
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+          echo $PATH
+          
+      - name: Setup Angle
+        run: |
+          cd angle
+
+          vpython3 scripts/bootstrap.py
+          gclient sync
+
+      - name: Make GN arg
+        run: |
+          cd angle
+          
+          mkdir -p out/Android-${{matrix.arch}}
+          touch out/Android-${{matrix.arch}}/args.gn
+
+          echo "target_os = \"android\"
+          is_component_build = false
+          is_debug = false
+          dcheck_always_on = false
+          symbol_level = 0
+          angle_standalone = false
+          angle_build_all = false
+
+          # Build for 64-bit CPUs
+          target_cpu = \"${{matrix.arch}}\"
+
+          # Target ndk API 26 to make sure ANGLE can use the Vulkan backend on Android
+          android32_ndk_api_level = 26
+          android64_ndk_api_level = 26
+
+          # Disable all backends except Vulkan
+          angle_enable_vulkan = true
+          angle_enable_gl = true
+          angle_enable_d3d9 = false
+          angle_enable_d3d11 = false
+          angle_enable_null = false
+          angle_enable_metal = false
+          angle_enable_gl_desktop_frontend = true
+
+          # SwiftShader is loaded as the system Vulkan driver on Android, not compiled by ANGLE
+          angle_enable_swiftshader = true
+
+          # Disable all shader translator targets except desktop GL (for Vulkan)
+          angle_enable_essl = true
+          angle_enable_glsl = true
+          angle_enable_hlsl = true
+          angle_enable_vksl = true
+
+          #angle_enable_commit_id = false
+
+          #angle_test_enable_system_egl = true
+
+          # Shader fix
+          angle_use_spirv_gen_through_glslang = true
+
+          # Enable using Vulkan to collect system info as a fallback.
+          #angle_enable_vulkan_system_info = true
+
+          # Link in system libGL, to work with apitrace.  See doc/DebuggingTips.md.
+          #angle_link_glx = true
+
+          # Disable histogram/protobuf support
+          angle_has_histograms = false
+
+          # Disable _LIBCPP_ABI_UNSTABLE, since it breaks std::string
+          libcxx_abi_unstable = false
+
+          # rapidJSON is used for ANGLE's frame capture (among other things), which is unnecessary for AOSP builds.
+          angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
+
+          gn gen out/Android-${{matrix.arch}}
+
+      - name: Build Angle (libraries)
+        run: |
+          cd angle
+          autoninja -C out/Android-${{matrix.arch}}
+
+      - name: Build Angle (apk)
+        run: |
+          cd angle
+          autoninja -C out/Android-${{matrix.arch}} angle_apks
+
+      - name: Upload Build Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: out-${{matrix.arch}}
+          path: |
+            angle/out/Android-${{matrix.arch}}
+            
+         
