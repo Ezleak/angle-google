@@ -88,13 +88,13 @@ jobs:
           angle_build_all = false
           android64_ndk_api_level = 26
           angle_enable_vulkan = true
-          angle_enable_gl = true
+          angle_enable_gl = false
           angle_enable_d3d9 = false
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
           angle_enable_swiftshader = false
-          angle_enable_essl = true
+          angle_enable_essl = false
           angle_enable_glsl = true
           angle_enable_hlsl = true
           angle_enable_gl_desktop_frontend = true
