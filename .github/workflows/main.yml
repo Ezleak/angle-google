@@ -85,10 +85,10 @@ jobs:
           is_official_build = true
           angle_build_all = false
           angle_enable_vulkan = true
-          angle_enable_gl = true
+          #angle_enable_gl = true
           angle_enable_gl_desktop_frontend = true
           angle_enable_glsl = true
-          angle_enable_hlsl = true
+          #angle_enable_hlsl = true
           chrome_pgo_phase = 0
           angle_expose_non_conformant_extensions_and_versions = true" >> out/Android-${{matrix.arch}}/args.gn
 
