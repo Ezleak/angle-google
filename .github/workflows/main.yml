@@ -2,6 +2,7 @@ name: Build
 
 on:
   workflow_dispatch:
+  push:
 
 jobs:
   build:
@@ -97,11 +98,6 @@ jobs:
         run: |
           cd angle
           autoninja -C out/Android-${{matrix.arch}}
-
-      - name: Build Angle (apk)
-        run: |
-          cd angle
-          autoninja -C out/Android-${{matrix.arch}} angle_apks
 
       - name: Upload Build Outputs
         uses: actions/upload-artifact@v4
