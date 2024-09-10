@@ -42,9 +42,8 @@ jobs:
           autoninja -C out/Android angle_apks
 
       - name: Upload ANGLE
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
-          name: angle-libs-${{matrix.arch}}
+          name: angle-apk
           path: |
-            angle/out/Android-${{matrix.arch}}/libGLESv2_angle.so
-            angle/out/Android-${{matrix.arch}}/libEGL_angle.so
+            angle/out/Android/apks/AngleLibraries.apk
