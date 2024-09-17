@@ -39,7 +39,7 @@ jobs:
           vpython3 scripts/bootstrap.py
           gclient sync
           gn gen out/Android
-          autoninja -C out/Android angle_apk
+          autoninja -C out/Android
 
       - name: Upload ANGLE
         uses: actions/upload-artifact@v3
