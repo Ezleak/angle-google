@@ -46,4 +46,4 @@ jobs:
         with:
           name: angle-apk
           path: |
-            angle/out/Android/apks/AngleLibraries.apk
+            angle/out/Android/a
