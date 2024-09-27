@@ -38,11 +38,7 @@ jobs:
         shell: bash
         run: |
           pip install vpython
-          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          export PATH=`pwd`/depot_tools:$PATH
-          echo $PATH
-          cd angle
-          python scripts/bootstrap.py
+          vpython3 scripts/bootstrap.py
           gclient sync
           gn gen out/Android-${{matrix.arch}}
           autoninja -C out/Android-${{matrix.arch}}
