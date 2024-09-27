@@ -73,9 +73,6 @@ if (angle_enable_vulkan || angle_build_vulkan_system_info) {
 
     data_deps = []
 
-  }
-}
-
 if (angle_enable_vulkan) {
   group("angle_libvulkan") {
     public_configs = [ ":angle_libvulkan_config" ]
