@@ -37,6 +37,7 @@ jobs:
       - name: Build ANGLE
         shell: bash
         run: |
+          pip install vpython
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           export PATH=`pwd`/depot_tools:$PATH
           echo $PATH
