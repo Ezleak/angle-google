@@ -73,6 +73,32 @@ if (angle_enable_vulkan || angle_build_vulkan_system_info) {
 
     data_deps = []
 
+    if (angle_enable_swiftshader) {
+      import("$swiftshader_dir/src/Vulkan/vulkan.gni")
+      _sws_icd = "./$swiftshader_icd_file_name"
+      if (is_win) {
+        _sws_icd = ".\\\\$swiftshader_icd_file_name"
+      } else if (is_fuchsia) {
+        _sws_icd = "/pkg/$swiftshader_icd_file_name"
+      }
+
+      defines += [ "ANGLE_VK_SWIFTSHADER_ICD_JSON=\"${_sws_icd}\"" ]
+
+      data_deps += [
+        "$swiftshader_dir/src/Vulkan:icd_file",
+        "$swiftshader_dir/src/Vulkan:swiftshader_libvulkan",
+      ]
+    }
+
+    public_deps = [
+      ":angle_vulkan_headers",
+      "$angle_root:angle_common",
+    ]
+
+    configs += [ "$angle_root:angle_no_cfi_icall" ]
+  }
+}
+
 if (angle_enable_vulkan) {
   group("angle_libvulkan") {
     public_configs = [ ":angle_libvulkan_config" ]
@@ -129,3 +155,16 @@ if (angle_enable_vulkan) {
       }
     }
   }
+
+  if (angle_enable_vulkan_api_dump_layer) {
+    group("lunarg_vulkantools") {
+      data_deps = []
+      if (!is_fuchsia) {
+        data_deps += [ "$angle_lunarg_vulkantools_dir:lunarg_vulkantools" ]
+        if (!is_android) {
+          data_deps += [ "$angle_lunarg_vulkantools_dir:vulkan_gen_json_files" ]
+        }
+      }
+    }
+  }
+}
