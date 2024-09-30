@@ -6,7 +6,7 @@ name: CI
 on:
   # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ main ]
+    branches: [ patch-7 ]
   pull_request:
     branches: [ main ]
 
@@ -19,7 +19,7 @@ jobs:
   build:
     strategy:
       matrix:
-        arch: [ "arm", "arm64", "x86", "x64" ]
+        arch: [ "arm64" ]
       fail-fast: false
 
     name: "Build for Android ${{matrix.arch}}"
@@ -37,12 +37,11 @@ jobs:
       - name: Build ANGLE
         shell: bash
         run: |
-          pip install vpython
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           export PATH=`pwd`/depot_tools:$PATH
           echo $PATH
           cd angle
-          python scripts/bootstrap.py
+          vpython3 scripts/bootstrap.py
           gclient sync
           gn gen out/Android-${{matrix.arch}}
           autoninja -C out/Android-${{matrix.arch}}
