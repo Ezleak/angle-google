@@ -140,4 +140,3 @@ if (angle_enable_vulkan) {
         }
       }
     }
-  }
