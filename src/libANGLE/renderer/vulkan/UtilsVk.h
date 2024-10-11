@@ -656,6 +656,7 @@ class UtilsVk : angle::NonCopyable
                                   const gl::Rectangle &renderArea,
                                   const VkImageAspectFlags aspectFlags,
                                   const VkClearValue *clearValue,
+                                  vk::RenderPassSource renderPassSource,
                                   vk::RenderPassCommandBuffer **commandBufferOut);
 
     // Set up descriptor set and call dispatch.
@@ -793,6 +794,8 @@ class LineLoopHelper final : angle::NonCopyable
 
     void release(ContextVk *contextVk);
     void destroy(vk::Renderer *renderer);
+
+    vk::BufferHelper *getCurrentIndexBuffer() { return mDynamicIndexBuffer.getBuffer(); }
 
     static void Draw(uint32_t count,
                      uint32_t baseVertex,
