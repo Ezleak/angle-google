@@ -84,15 +84,12 @@ jobs:
           is_debug = false
           is_official_build = true
           angle_build_all = false
-          android32_ndk_api_level = 26
           android64_ndk_api_level = 26
           build_angle_deqp_tests = false
           dcheck_always_on = true
           proprietary_codecs = true
           symbol_level = 1
           angle_enable_vulkan_validation_layers = false
-          angle_libs_suffix = "_angle"
-          build_apk_secondary_abi = true
           angle_enable_null = false
           angle_force_thread_safety = true
           angle_enable_vulkan = true
