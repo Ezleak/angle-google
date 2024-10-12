@@ -84,7 +84,8 @@ jobs:
           is_debug = false
           is_official_build = true
           angle_build_all = false
-          angle_enable_vulkan = true" >> out/Android-${{matrix.arch}}/args.gn
+          angle_enable_vulkan = true
+          angle_enable_desktop_gl_frontend = true" >> out/Android-${{matrix.arch}}/args.gn
 
           gn gen out/Android-${{matrix.arch}}
 
