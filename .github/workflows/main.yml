@@ -98,11 +98,11 @@ jobs:
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
-          angle_enable_swiftshader = true
+          angle_enable_gl_desktop_backend = true
+          angle_enable_swiftshader = false
           angle_enable_essl = true
           angle_enable_glsl = true
           angle_enable_hlsl = true
-          angle_enable_desktop_glsl = false
           chrome_pgo_phase = 0
           angle_expose_non_conformant_extensions_and_versions = true" >> out/Android-${{matrix.arch}}/args.gn
 
