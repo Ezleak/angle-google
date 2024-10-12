@@ -93,7 +93,7 @@ jobs:
           angle_enable_null = false
           angle_force_thread_safety = true
           angle_enable_vulkan = true
-          angle_enable_gl = false
+          angle_enable_gl = true
           angle_enable_d3d9 = false
           angle_enable_d3d11 = false
           angle_enable_null = false
@@ -102,6 +102,7 @@ jobs:
           angle_enable_essl = true
           angle_enable_glsl = true
           angle_enable_hlsl = true
+          angle_enable_desktop_glsl = true
           chrome_pgo_phase = 0
           angle_expose_non_conformant_extensions_and_versions = true" >> out/Android-${{matrix.arch}}/args.gn
 
