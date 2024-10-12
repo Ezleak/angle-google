@@ -84,9 +84,7 @@ jobs:
           is_debug = false
           is_official_build = true
           angle_build_all = false
-          angle_enable_vulkan = true
-          chrome_pgo_phase = 0
-          angle_expose_non_conformant_extensions_and_versions = true" >> out/Android-${{matrix.arch}}/args.gn
+          angle_enable_vulkan = true" >> out/Android-${{matrix.arch}}/args.gn
 
           gn gen out/Android-${{matrix.arch}}
 
