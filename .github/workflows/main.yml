@@ -93,7 +93,8 @@ jobs:
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
-          angle_enable_desktop_gl_frontend = true
+          angle_enable_gl_desktop_frontend = true
+angle_enable_gl_desktop_backend = true
           angle_enable_swiftshader = false
           angle_enable_essl = true
           angle_enable_glsl = true
