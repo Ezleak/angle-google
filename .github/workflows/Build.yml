@@ -1,0 +1,118 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: [ "arm64" ]
+
+    name: Build For Android (libraries and apks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free up disk space
+        uses: easimon/maximize-build-space@v10
+        with:
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Free up disk space P2
+        run: |
+          rm -rf *
+
+          sudo rm -rf \
+            /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup \
+            /usr/lib/jvm || true
+
+          sudo apt install aptitude -y >/dev/null 2>&1
+          sudo aptitude purge aria2 ansible azure-cli shellcheck rpm xorriso zsync \
+            esl-erlang firefox gfortran-8 gfortran-9 google-chrome-stable \
+            google-cloud-sdk imagemagick \
+            libmagickcore-dev libmagickwand-dev libmagic-dev ant ant-optional kubectl \
+            mercurial apt-transport-https mono-complete libmysqlclient \
+            unixodbc-dev yarn chrpath libssl-dev libxft-dev \
+            libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev \
+            snmp pollinate libpq-dev postgresql-client powershell ruby-full \
+            sphinxsearch subversion mongodb-org azure-cli microsoft-edge-stable \
+            -y -f >/dev/null 2>&1
+          sudo aptitude purge google-cloud-sdk -f -y >/dev/null 2>&1
+          sudo aptitude purge microsoft-edge-stable -f -y >/dev/null 2>&1 || true
+          sudo apt purge microsoft-edge-stable -f -y >/dev/null 2>&1 || true
+          sudo aptitude purge '~n ^mysql' -f -y >/dev/null 2>&1
+          sudo aptitude purge '~n ^php' -f -y >/dev/null 2>&1
+          sudo aptitude purge '~n ^dotnet' -f -y >/dev/null 2>&1
+          sudo apt-get autoremove -y >/dev/null 2>&1
+          sudo apt-get autoclean -y >/dev/null 2>&1
+    
+      - name: Get Angle
+        uses: actions/checkout@main
+        with:
+          path: 'angle'
+          fetch-depth: 1
+
+      - name: Get & Install depot_tools
+        run: |
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+          echo $PATH
+          
+      - name: Setup Angle
+        run: |
+          cd angle
+
+          vpython3 scripts/bootstrap.py
+          gclient sync
+
+      - name: Make GN arg
+        run: |
+          cd angle
+          
+          mkdir -p out/Android-${{matrix.arch}}
+          touch out/Android-${{matrix.arch}}/args.gn
+
+          echo "target_os = \"android\"
+          target_cpu = \"${{matrix.arch}}\"
+          is_component_build = false
+          is_debug = false
+          dcheck_always_on = false
+          angle_assert_always_on = false
+          symbol_level = 0
+          angle_build_all = false
+          android64_ndk_api_level = 29
+          angle_enable_vulkan = true
+          angle_enable_gl = false
+          angle_enable_d3d9 = false
+          angle_enable_d3d11 = false
+          angle_enable_null = false
+          angle_enable_metal = false
+          angle_enable_gl_desktop_frontend = false
+          angle_enable_gl_desktop_backend = false
+          angle_enable_swiftshader = false
+          angle_enable_essl = false
+          angle_enable_glsl = true
+          angle_enable_hlsl = false
+          angle_expose_non_conformant_extensions_and_versions = true
+          angle_has_histograms = false
+          angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
+
+          gn gen out/Android-${{matrix.arch}}
+
+      - name: Build Angle (libraries)
+        run: |
+          cd angle
+          autoninja -C out/Android-${{matrix.arch}}
+
+      - name: Upload Build Outputs
+        uses: actions/upload-artifact@main
+        with:
+          name: out-${{matrix.arch}}
+          path: |
+            angle/out/Android-${{matrix.arch}}
