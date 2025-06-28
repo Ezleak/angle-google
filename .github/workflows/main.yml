@@ -1,26 +1,56 @@
 name: Build
 
-on: [ workflow_dispatch, push ]
+on:
+  workflow_dispatch:
+  push:
 
 jobs:
   build:
-    permissions:
-      id-token: write
-      contents: read
     strategy:
       matrix:
         arch: [ "arm64" ]
 
     name: Build For Android (libraries and apks)
     runs-on: ubuntu-latest
+
     steps:
-    
-      - name: Setup CCache
-        uses: Chocobo1/setup-ccache-action@v1
+      - name: Free up disk space
+        uses: easimon/maximize-build-space@v10
         with:
-          ccache_options: |
-            max_size=30000MB
-            compression=false
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Free up disk space P2
+        run: |
+          rm -rf *
+
+          sudo rm -rf \
+            /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup \
+            /usr/lib/jvm || true
+
+          sudo apt install aptitude -y >/dev/null 2>&1
+          sudo aptitude purge aria2 ansible azure-cli shellcheck rpm xorriso zsync \
+            esl-erlang firefox gfortran-8 gfortran-9 google-chrome-stable \
+            google-cloud-sdk imagemagick \
+            libmagickcore-dev libmagickwand-dev libmagic-dev ant ant-optional kubectl \
+            mercurial apt-transport-https mono-complete libmysqlclient \
+            unixodbc-dev yarn chrpath libssl-dev libxft-dev \
+            libfreetype6 libfreetype6-dev libfontconfig1 libfontconfig1-dev \
+            snmp pollinate libpq-dev postgresql-client powershell ruby-full \
+            sphinxsearch subversion mongodb-org azure-cli microsoft-edge-stable \
+            -y -f >/dev/null 2>&1
+          sudo aptitude purge google-cloud-sdk -f -y >/dev/null 2>&1
+          sudo aptitude purge microsoft-edge-stable -f -y >/dev/null 2>&1 || true
+          sudo apt purge microsoft-edge-stable -f -y >/dev/null 2>&1 || true
+          sudo aptitude purge '~n ^mysql' -f -y >/dev/null 2>&1
+          sudo aptitude purge '~n ^php' -f -y >/dev/null 2>&1
+          sudo aptitude purge '~n ^dotnet' -f -y >/dev/null 2>&1
+          sudo apt-get autoremove -y >/dev/null 2>&1
+          sudo apt-get autoclean -y >/dev/null 2>&1
     
       - name: Get Angle
         uses: actions/checkout@main
@@ -32,76 +62,57 @@ jobs:
         run: |
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
-      - name: Angle dependencies caches
-        uses: actions/cache@v4
-        with:
-          key: angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          restore-keys: angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
-          path: |
-            angle/.cipd
-            angle/third_party
+          echo $PATH
           
-      - name: Bootstrap and Sync Angle
+      - name: Setup Angle
         run: |
           cd angle
+
           vpython3 scripts/bootstrap.py
-          gclient sync --no-history -j$(nproc)
+          gclient sync
+
       - name: Make GN arg
         run: |
           cd angle
-          mkdir -p out/Android-${{ matrix.arch }}
           
+          mkdir -p out/Android-${{matrix.arch}}
+          touch out/Android-${{matrix.arch}}/args.gn
+
           echo "target_os = \"android\"
-          target_cpu = \"${{ matrix.arch }}\"
+          target_cpu = \"${{matrix.arch}}\"
           is_component_build = false
           is_debug = false
-          angle_assert_always_on = false
-          is_clang = true
-          proprietary_codecs = true
           dcheck_always_on = false
-          
-          cc_wrapper=\"env CCACHE_SLOPPINESS=time_macros ccache\"
-          android32_ndk_api_level = 30
-          android64_ndk_api_level = 30
+          angle_assert_always_on = false
           symbol_level = 0
-          strip_debug_info = true
-          generate_debug_info = false
-          enable_resource_allowlist_generation = false
-          use_thin_lto = true
-          
+          angle_build_all = false
+          android64_ndk_api_level = 29
           angle_enable_vulkan = true
-          angle_enable_vulkan_validation_layers = false
-          angle_enable_essl = false
-          angle_enable_glsl = true
-          angle_enable_hlsl = false
-          angle_enable_gl = false
-          angle_enable_gl_desktop_frontend = true
-          angle_enable_gl_desktop_backend = true
+          angle_enable_gl = true
           angle_enable_d3d9 = false
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
+          angle_enable_gl_desktop_frontend = true
+          angle_enable_gl_desktop_backend = true
           angle_enable_swiftshader = false
+          angle_enable_essl = false
+          angle_enable_glsl = true
+          angle_enable_hlsl = false
           angle_expose_non_conformant_extensions_and_versions = true
-          
-          build_angle_deqp_tests = false
-          arm_use_neon = true
-          arm_version = 8
-          angle_enable_vulkan_shared_ring_buffer_cmd_alloc = true
-          angle_build_tests = false
-          arm_float_abi = \"hard\"
-          arm_fpu = \"neon\"
-          " > out/Android-${{ matrix.arch }}/args.gn
-          gn gen out/Android-${{ matrix.arch }} --threads=$(nproc)
-          gn args out/Android-${{ matrix.arch }} --list --short 
+          angle_has_histograms = false
+          angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
+
+          gn gen out/Android-${{matrix.arch}}
+
       - name: Build Angle (libraries)
         run: |
           cd angle
-          autoninja -j$(nproc) -C out/Android-${{ matrix.arch }}
-      - name: Upload Build Outputs (libs)
-        uses: actions/upload-artifact@v4
+          autoninja -C out/Android-${{matrix.arch}}
+
+      - name: Upload Build Outputs
+        uses: actions/upload-artifact@main
         with:
-          name: libs-${{ matrix.arch }}
+          name: out-${{matrix.arch}}
           path: |
-            angle/out/Android-${{ matrix.arch }}/*.so
-            angle/out/Android-${{ matrix.arch }}/lib.unstripped
+            angle/out/Android-${{matrix.arch}}
