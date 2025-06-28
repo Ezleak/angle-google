@@ -1,75 +1,118 @@
 name: Build
 
-on:
-  workflow_dispatch:
+on: [ workflow_dispatch, push ]
 
 jobs:
   build:
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
-        arch: [ "arm64" ]
+        arch: [ "arm", "arm64" ]
 
     name: Build For Android (libraries and apks)
-    runs-on: ubuntu-latest
-
+    runs-on: namespace-profile-anglebuild
     steps:
-      - name: Free up disk space
-        uses: easimon/maximize-build-space@master
+      - uses: namespacelabs/nscloud-setup@v0
+    
+      - name: Setup CCache
+        uses: Chocobo1/setup-ccache-action@v1
         with:
-          swap-size-mb: 1024
-          remove-dotnet: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
-
+          ccache_options: |
+            max_size=30000MB
+            compression=false
+    
       - name: Get Angle
-        uses: actions/checkout@main
+        uses: namespacelabs/nscloud-checkout-action@v5
         with:
           path: 'angle'
           fetch-depth: 1
 
+      - name: Get & Install depot_tools
+        run: |
+          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+      - name: Angle dependencies caches
+        uses: actions/cache@v4
+        with:
+          key: angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          restore-keys: angle-deps-${{ matrix.arch }}-${{ hashFiles('angle/DEPS') }}
+          path: |
+            angle/.cipd
+            angle/third_party
+          
+      - name: Bootstrap and Sync Angle
+        run: |
+          cd angle
+          vpython3 scripts/bootstrap.py
+          gclient sync --no-history -j$(nproc)
       - name: Make GN arg
         run: |
           cd angle
+          mkdir -p out/Android-${{ matrix.arch }}
           
-          mkdir -p out/Android-${{matrix.arch}}
-          touch out/Android-${{matrix.arch}}/args.gn
-
           echo "target_os = \"android\"
-          target_cpu = \"${{matrix.arch}}\"
+          target_cpu = \"${{ matrix.arch }}\"
           is_component_build = false
           is_debug = false
-          dcheck_always_on = false
           angle_assert_always_on = false
+          is_clang = true
+          proprietary_codecs = true
+          dcheck_always_on = false
+          
+          cc_wrapper=\"env CCACHE_SLOPPINESS=time_macros ccache\"
+          android32_ndk_api_level = 30
+          android64_ndk_api_level = 30
           symbol_level = 0
-          angle_build_all = false
-          android64_ndk_api_level = 29
+          strip_debug_info = true
+          generate_debug_info = false
+          enable_resource_allowlist_generation = false
+          use_thin_lto = true
+          
           angle_enable_vulkan = true
-          angle_enable_gl = true
+          angle_enable_vulkan_validation_layers = false
+          angle_enable_essl = false
+          angle_enable_glsl = true
+          angle_enable_hlsl = false
+          angle_enable_gl = false
+          angle_enable_gl_desktop_frontend = true
+          angle_enable_gl_desktop_backend = true
           angle_enable_d3d9 = false
           angle_enable_d3d11 = false
           angle_enable_null = false
           angle_enable_metal = false
-          angle_enable_gl_desktop_frontend = true
-          angle_enable_gl_desktop_backend = true
           angle_enable_swiftshader = false
-          angle_enable_essl = false
-          angle_enable_glsl = true
-          angle_enable_hlsl = false
           angle_expose_non_conformant_extensions_and_versions = true
-          angle_has_histograms = false
-          angle_has_rapidjson = false" >> out/Android-${{matrix.arch}}/args.gn
-
-          gn gen out/Android-${{matrix.arch}}
-
+          
+          build_angle_deqp_tests = false
+          arm_use_neon = true
+          arm_version = 8
+          angle_enable_vulkan_shared_ring_buffer_cmd_alloc = true
+          angle_build_tests = false
+          arm_float_abi = \"hard\"
+          arm_fpu = \"neon\"
+          " > out/Android-${{ matrix.arch }}/args.gn
+          gn gen out/Android-${{ matrix.arch }} --threads=$(nproc)
+          gn args out/Android-${{ matrix.arch }} --list --short 
       - name: Build Angle (libraries)
         run: |
           cd angle
-          autoninja -C out/Android-${{matrix.arch}}
-
-      - name: Upload Build Outputs
-        uses: actions/upload-artifact@main
+          autoninja -j$(nproc) -C out/Android-${{ matrix.arch }}
+      - name: Build Angle (apk)
+        run: |
+          cd angle
+          autoninja -j$(nproc) -C out/Android-${{ matrix.arch }} angle_apks
+      - name: Upload Build Outputs (apk)
+        uses: actions/upload-artifact@v4
         with:
-          name: out-${{matrix.arch}}
+          name: apks-${{ matrix.arch }}
+          path: | 
+            angle/out/Android-${{ matrix.arch }}/apks
+      - name: Upload Build Outputs (libs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: libs-${{ matrix.arch }}
           path: |
-            angle/out/Android-${{matrix.arch}}
+            angle/out/Android-${{ matrix.arch }}/*.so
+            angle/out/Android-${{ matrix.arch }}/lib.unstripped
