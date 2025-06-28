@@ -28,19 +28,6 @@ jobs:
           path: 'angle'
           fetch-depth: 1
 
-      - name: Get & Install depot_tools
-        run: |
-          git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
-          echo $PATH
-          
-      - name: Setup Angle
-        run: |
-          cd angle
-
-          vpython3 scripts/bootstrap.py
-          gclient sync
-
       - name: Make GN arg
         run: |
           cd angle
