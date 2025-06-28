@@ -12,9 +12,8 @@ jobs:
         arch: [ "arm64" ]
 
     name: Build For Android (libraries and apks)
-    runs-on: namespace-profile-anglebuild
+    runs-on: ubuntu-latest
     steps:
-      - uses: namespacelabs/nscloud-setup@v0
     
       - name: Setup CCache
         uses: Chocobo1/setup-ccache-action@v1
