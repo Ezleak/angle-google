@@ -23,7 +23,7 @@ jobs:
             compression=false
     
       - name: Get Angle
-        uses: namespacelabs/nscloud-checkout-action@v5
+        uses: actions/checkout@main
         with:
           path: 'angle'
           fetch-depth: 1
@@ -98,16 +98,6 @@ jobs:
         run: |
           cd angle
           autoninja -j$(nproc) -C out/Android-${{ matrix.arch }}
-      - name: Build Angle (apk)
-        run: |
-          cd angle
-          autoninja -j$(nproc) -C out/Android-${{ matrix.arch }} angle_apks
-      - name: Upload Build Outputs (apk)
-        uses: actions/upload-artifact@v4
-        with:
-          name: apks-${{ matrix.arch }}
-          path: | 
-            angle/out/Android-${{ matrix.arch }}/apks
       - name: Upload Build Outputs (libs)
         uses: actions/upload-artifact@v4
         with:
