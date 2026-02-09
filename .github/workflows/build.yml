@@ -1,14 +1,11 @@
 name: ANGLE
 
 on:
-  push:
   workflow_dispatch:
+  push:
 
 jobs:
   build:
-    permissions:
-      id-token: write
-      contents: read
     strategy:
       matrix:
         arch: ["arm64"]
@@ -18,15 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Cache depot_tools and dependencies
-        uses: actions/cache@main
-        with:
-          path: |
-            depot_tools
-            third_party
-            .cipd
-          key: ${{ runner.os }}-angle-deps-${{ hashFiles('angle/DEPS') }}
  
       - name: Checkout
         uses: actions/checkout@main
@@ -36,42 +24,36 @@ jobs:
       - name: Setup depot_tools
         shell: bash
         run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf JAVA_HOME_8_X64
+          sudo rm -rf JAVA_HOME_11_X64
+          sudo rm -rf JAVA_HOME_17_X64
+          sudo rm -rf JAVA_HOME_21_X64
+          sudo rm -rf JAVA_HOME_25_X64
+          sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /usr/local/share/vcpkg
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/27.3.13750724
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
-          echo "DEPOT_TOOLS_COMMIT=$(git -C depot_tools rev-parse HEAD)" >> $GITHUB_ENV
-          export PATH=`pwd`/depot_tools:$PATH
-          echo $PATH
-          vpython3 scripts/bootstrap.py
 
       - name: Run gclient sync
         shell: bash
         run:  |
            echo "DEPOT_TOOLS_COMMIT=$(git -C depot_tools rev-parse HEAD)" >> $GITHUB_ENV
-           export PATH=${PWD}/depot_tools:$PATH
+           export PATH=`pwd`/depot_tools:$PATH
            echo $PATH
-           # 创建目标目录
-           mkdir -p build/linux/debian_bullseye_amd64-sysroot
-           cd build/linux/debian_bullseye_amd64-sysroot
-
-           # 下载并解压 sysroot 压缩包
-           wget https://commondatastorage.googleapis.com/chrome-linux-sysroot/36a164623d03f525e3dfb783a5e9b8a00e98e1ddd2b5cff4e449bd016dd27e50 -O sysroot.tar.xz
-           tar -xvf sysroot.tar.xz
-           rm sysroot.tar.xz
-
-           # 返回项目根目录
-           cd ../../..
-           # python3 tools/clang/scripts/update.py
-           # python3 tools/clang/scripts/update.py --package objdump
-           # python3 tools/rust/update_rust.py
-           # python3 build/util/lastchange.py -o build/util/LASTCHANGE
-           # python3 third_party/depot_tools/download_from_google_storage.py --no_resume --platform=linux* --bucket angle-glslang-validator -s tools/glslang/glslang_validator.sha1
-           # python3 third_party/depot_tools/download_from_google_storage.py --no_resume --platform=linux* --bucket angle-flex-bison -d tools/flex-bison/linux/
-           # python3 build/config/siso/configure_siso.py --rbe_instance projects/rbe-chrome-untrusted/instances/default_instance
-
+           vpython3 scripts/bootstrap.py
+           gclient sync --no-history --shallow --reset --force
+        
       - name: Build ANGLE
         shell: bash
         run: |
           echo "DEPOT_TOOLS_COMMIT=$(git -C depot_tools rev-parse HEAD)" >> $GITHUB_ENV
-          export PATH=${PWD}/depot_tools:$PATH
+          export PATH=`pwd`/depot_tools:$PATH
           echo $PATH
           gn gen out/Android-${{matrix.arch}} --threads=$(nproc)
           gn args out/Android-${{ matrix.arch }} --list --short
@@ -85,7 +67,7 @@ jobs:
           chmod +x ./out/Android-${{matrix.arch}}/siso_failed_commands.sh
           ./out/Android-${{matrix.arch}}/siso_failed_commands.sh
 
-      - name: Upload artifacts
+      - name: Upload angle
         uses: actions/upload-artifact@main
         with:
           name: angle-${{matrix.arch}}-${{ github.run_number }}
